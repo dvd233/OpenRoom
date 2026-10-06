@@ -15,9 +15,13 @@ jobs:
       HUSKY: "0"
       DO_NOT_TRACK: "1"
       TURBO_TELEMETRY_DISABLED: "1"
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/openroom-browsers
-      VALIDATION_REPORT_DIR: ${{ runner.temp }}/openroom-file-tool-validation
     steps:
+      - name: Set runner-local validation paths
+        shell: bash
+        run: |
+          printf '%s\n' \
+            "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/openroom-browsers" \
+            "VALIDATION_REPORT_DIR=$RUNNER_TEMP/openroom-file-tool-validation" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: validation

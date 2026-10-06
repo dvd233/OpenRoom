@@ -540,3 +540,32 @@ test("baseline verification rehashes copied regression tests after preparation",
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test("runner-specific paths are initialized in a step, never job-level env", () => {
+  const workflow = fs.readFileSync(
+    path.resolve(here, "../../.github/workflows/validate-file-tool-errors.yml"),
+    "utf8",
+  );
+  const jobEnv = workflow.match(/^ {4}env:\n((?: {6}[^\n]*\n|\s*\n)*)/m)?.[1];
+  assert.notEqual(jobEnv, undefined, "Expected the job-level env block");
+  assert(
+    !/\$\{\{\s*runner\b/.test(jobEnv),
+    "runner context is unavailable in job-level env",
+  );
+  const firstStep = workflow.split(/^ {4}steps:\n/m)[1]?.split(/^ {6}- /m)[1];
+  assert(firstStep?.startsWith("name: Set runner-local validation paths\n"));
+  assert(
+    firstStep.includes(
+      '"PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/openroom-browsers"',
+    ),
+  );
+  assert(
+    firstStep.includes(
+      '"VALIDATION_REPORT_DIR=$RUNNER_TEMP/openroom-file-tool-validation"',
+    ),
+  );
+  assert(firstStep.includes('>> "$GITHUB_ENV"'));
+  assert(
+    workflow.includes("path: ${{ runner.temp }}/openroom-file-tool-validation"),
+  );
+});
