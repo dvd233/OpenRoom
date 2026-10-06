@@ -73,17 +73,23 @@ export async function getFile(filePath: string): Promise<unknown> {
  */
 export async function putTextFilesByJSON(data: {
   files: Array<{ path?: string; name?: string; content?: string }>;
+  /** Reject failed requests. Batches are concurrent and are not rolled back. */
+  throwOnError?: boolean;
 }): Promise<void> {
   const promises = data.files.map(async (file) => {
     const fullPath = file.path ? `${file.path}/${file.name}` : file.name || '';
     if (!fullPath) return;
     try {
-      await fetch(apiUrl(fullPath), {
+      const res = await fetch(apiUrl(fullPath), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: file.content || '',
       });
+      if (data.throwOnError && !res.ok) {
+        throw new Error(`File write failed: HTTP ${res.status}`);
+      }
     } catch (e) {
+      if (data.throwOnError) throw e;
       console.warn('[diskStorage] putTextFilesByJSON write failed:', e);
     }
   });
@@ -113,11 +119,19 @@ export async function putBinaryFile(
   });
 }
 
-export async function deleteFilesByPaths(data: { file_paths: string[] }): Promise<void> {
+export async function deleteFilesByPaths(data: {
+  file_paths: string[];
+  /** Reject failed requests. Batches are concurrent and are not rolled back. */
+  throwOnError?: boolean;
+}): Promise<void> {
   const promises = data.file_paths.map(async (filePath) => {
     try {
-      await fetch(apiUrl(filePath), { method: 'DELETE' });
-    } catch {
+      const res = await fetch(apiUrl(filePath), { method: 'DELETE' });
+      if (data.throwOnError && !res.ok) {
+        throw new Error(`File delete failed: HTTP ${res.status}`);
+      }
+    } catch (e) {
+      if (data.throwOnError) throw e;
       // silently ignore
     }
   });
