@@ -8,7 +8,7 @@ permissions:
 jobs:
   validate:
     if: github.repository == 'dvd233/OpenRoom' && github.repository_id == '1407883783'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       CI: "true"
@@ -57,9 +57,8 @@ jobs:
       - name: Install original frozen dependencies without lifecycle scripts
         working-directory: candidate
         run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org/
-      - name: Install matching official Chromium
-        working-directory: candidate
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Inspect preinstalled official Chrome
+        run: node validation/.validation/file-tool-errors/validate.mjs inspect-chrome
       - name: Isolate runtime home and prepare baseline
         run: node validation/.validation/file-tool-errors/validate.mjs prepare
       - name: Native package tests

@@ -390,7 +390,204 @@ export function verifyCheckout(
 
 export function browserConfigText(repo, outputDir, reportFile) {
   const config = JSON.stringify(path.join(repo, "playwright.config.ts"));
-  return `import upstream from ${config};\nexport default {\n  ...upstream,\n  testDir: ${JSON.stringify(path.join(repo, "e2e"))},\n  testMatch: 'file-tool-errors.spec.ts',\n  retries: 0,\n  workers: 1,\n  reporter: [['list'], ['json', { outputFile: ${JSON.stringify(reportFile)} }]],\n  outputDir: ${JSON.stringify(outputDir)},\n  use: { ...upstream.use, baseURL: 'http://127.0.0.1:3000', launchOptions: { ...upstream.use?.launchOptions, chromiumSandbox: true } },\n  webServer: Array.isArray(upstream.webServer) ? upstream.webServer.map(server => ({ ...server, command: 'pnpm --filter @openroom/webuiapps dev --host 127.0.0.1 --port 3000 --strictPort', url: 'http://127.0.0.1:3000', cwd: ${JSON.stringify(repo)}, reuseExistingServer: false })) : { ...upstream.webServer, command: 'pnpm --filter @openroom/webuiapps dev --host 127.0.0.1 --port 3000 --strictPort', url: 'http://127.0.0.1:3000', cwd: ${JSON.stringify(repo)}, reuseExistingServer: false },\n};\n`;
+  return `import upstream from ${config};\nexport default {\n  ...upstream,\n  testDir: ${JSON.stringify(path.join(repo, "e2e"))},\n  testMatch: 'file-tool-errors.spec.ts',\n  retries: 0,\n  workers: 1,\n  reporter: [['list'], ['json', { outputFile: ${JSON.stringify(reportFile)} }]],\n  outputDir: ${JSON.stringify(outputDir)},\n  use: { ...upstream.use, channel: 'chrome', baseURL: 'http://127.0.0.1:3000', launchOptions: { ...upstream.use?.launchOptions, chromiumSandbox: true } },\n  webServer: Array.isArray(upstream.webServer) ? upstream.webServer.map(server => ({ ...server, command: 'pnpm --filter @openroom/webuiapps dev --host 127.0.0.1 --port 3000 --strictPort', url: 'http://127.0.0.1:3000', cwd: ${JSON.stringify(repo)}, reuseExistingServer: false })) : { ...upstream.webServer, command: 'pnpm --filter @openroom/webuiapps dev --host 127.0.0.1 --port 3000 --strictPort', url: 'http://127.0.0.1:3000', cwd: ${JSON.stringify(repo)}, reuseExistingServer: false },\n};\n`;
+}
+
+const chromeBinary = "/opt/google/chrome/chrome";
+const chromeProfile = "/etc/apparmor.d/chrome";
+
+function protectedSystemPath(file, directory = false) {
+  const stat = fs.lstatSync(file);
+  assertEqual(
+    fs.realpathSync(file),
+    file,
+    `Unexpected system path target: ${file}`,
+  );
+  assert(
+    directory ? stat.isDirectory() : stat.isFile(),
+    `Unexpected system file type: ${file}`,
+  );
+  assertEqual(stat.uid, 0, `System path is not root-owned: ${file}`);
+  assertEqual(
+    stat.mode & 0o022,
+    0,
+    `System path is group/world writable: ${file}`,
+  );
+  let writable = true;
+  try {
+    fs.accessSync(file, fs.constants.W_OK);
+  } catch (error) {
+    if (error.code !== "EACCES" && error.code !== "EPERM") throw error;
+    writable = false;
+  }
+  assert(!writable, `Runner can write system path: ${file}`);
+  fs.accessSync(file, fs.constants.R_OK | (directory ? fs.constants.X_OK : 0));
+  return {
+    path: file,
+    uid: stat.uid,
+    mode: (stat.mode & 0o7777).toString(8),
+    writable,
+  };
+}
+
+export function checkChromeMetadata(
+  release,
+  profileText,
+  packageInfo,
+  packageOwner,
+  version,
+) {
+  assert(/^ID=ubuntu$/m.test(release), "Chrome preflight requires Ubuntu");
+  assert(
+    /^VERSION_ID="24\.04"$/m.test(release),
+    "Chrome preflight requires Ubuntu24.04",
+  );
+  const activeLines = profileText.replace(/#.*$/gm, "");
+  const chromeBlock = activeLines.match(
+    /\bprofile\s+chrome\s+\/opt\/google\/chrome\/chrome\s[^{}]*\{([^{}]*)\}/,
+  );
+  assert(chromeBlock, "Expected original Chrome profile attachment is absent");
+  assert(
+    /^\s*userns\s*,\s*$/m.test(chromeBlock[1]),
+    "Expected Chrome userns profile rule is absent",
+  );
+  const [status, packageVersion, maintainer, architecture] = packageInfo
+    .trim()
+    .split("\t");
+  assertEqual(
+    status,
+    "install ok installed",
+    "Official stable Chrome package is not installed",
+  );
+  assertEqual(architecture, "amd64", "Unexpected Chrome package architecture");
+  assert(
+    maintainer && packageVersion,
+    "Chrome package/provider metadata is missing",
+  );
+  assert(
+    /^google-chrome-stable(?::amd64)?: \/opt\/google\/chrome\/chrome$/.test(
+      packageOwner.trim(),
+    ),
+    "Chrome binary is not owned by the installed stable package",
+  );
+  if (version !== undefined) {
+    const match = version.match(/^Google Chrome (\d+\.\d+\.\d+\.\d+)\b/);
+    assert(match, "Unexpected browser/provider version output");
+    assert(
+      packageVersion === match[1] || packageVersion.startsWith(`${match[1]}-`),
+      "Binary and installed package versions differ",
+    );
+  }
+  return { status, packageVersion, maintainer, architecture };
+}
+
+async function inspectPreinstalledChrome(p) {
+  assertEqual(process.platform, "linux", "Chrome preflight requires Linux");
+  assert(
+    process.getuid() !== 0,
+    "Chrome must run as the ordinary hosted-runner user",
+  );
+  const release = fs.readFileSync("/etc/os-release", "utf8");
+  for (const dir of [
+    "/opt",
+    "/opt/google",
+    "/opt/google/chrome",
+    "/etc",
+    "/etc/apparmor.d",
+  ]) {
+    protectedSystemPath(dir, true);
+  }
+  const binary = protectedSystemPath(chromeBinary);
+  fs.accessSync(chromeBinary, fs.constants.X_OK);
+  const profile = protectedSystemPath(chromeProfile);
+  const profileText = fs.readFileSync(chromeProfile, "utf8");
+  const query = (...args) =>
+    execFileSync("dpkg-query", args, {
+      encoding: "utf8",
+      timeout: 10000,
+    }).trim();
+  const packageInfo = query(
+    "-W",
+    "--showformat=${Status}\t${Version}\t${Maintainer}\t${Architecture}\n",
+    "google-chrome-stable",
+  );
+  const packageOwner = query("-S", chromeBinary);
+  const { status, packageVersion, maintainer, architecture } =
+    checkChromeMetadata(release, profileText, packageInfo, packageOwner);
+  const packageVerification = execFileSync(
+    "dpkg",
+    ["--verify", "google-chrome-stable"],
+    { encoding: "utf8", timeout: 15000 },
+  ).trim();
+  assertEqual(
+    packageVerification,
+    "",
+    "Installed Chrome differs from its package database; stop without repairing it",
+  );
+  const versionHome = path.join(
+    process.env.RUNNER_TEMP,
+    "openroom-chrome-version-home",
+  );
+  assert(
+    !fs.existsSync(versionHome),
+    "Do not adopt a preexisting Chrome version-check home",
+  );
+  fs.mkdirSync(versionHome);
+  const version = execFileSync(chromeBinary, ["--version"], {
+    encoding: "utf8",
+    timeout: 10000,
+    env: { ...process.env, HOME: versionHome },
+  }).trim();
+  checkChromeMetadata(release, profileText, packageInfo, packageOwner, version);
+  const hash = crypto.createHash("sha256");
+  for await (const chunk of fs.createReadStream(chromeBinary))
+    hash.update(chunk);
+  const readStatus = (file) => {
+    try {
+      return fs.readFileSync(file, "utf8").trim();
+    } catch {
+      return "unavailable";
+    }
+  };
+  const loadedProfiles = readStatus("/sys/kernel/security/apparmor/profiles");
+  const loadedProfileEvidence =
+    loadedProfiles === "unavailable"
+      ? "unavailable to the existing runner user"
+      : loadedProfiles.split("\n").filter((line) => /^chrome\s+\(/.test(line));
+  return {
+    state: "PASS",
+    channel: "chrome",
+    chromiumSandbox: true,
+    version,
+    package: {
+      name: "google-chrome-stable",
+      status,
+      version: packageVersion,
+      maintainer,
+      architecture,
+      owner: packageOwner,
+      verification:
+        "consistent with installed package database, not independent signature verification",
+    },
+    binary: { ...binary, sha256: hash.digest("hex") },
+    profile: {
+      ...profile,
+      sha256: sha256(Buffer.from(profileText)),
+      attachment: chromeBinary,
+      usernsRulePresent: true,
+      loadedState: loadedProfileEvidence,
+      loadedStateCaveat:
+        "The profile file alone does not establish loaded policy or audit all sandbox layers.",
+    },
+    apparmor: {
+      enabled: readStatus("/sys/module/apparmor/parameters/enabled"),
+      usernsRestriction: readStatus(
+        "/proc/sys/kernel/apparmor_restrict_unprivileged_userns",
+      ),
+    },
+    limitation:
+      "Preinstalled Google Chrome channel, not the bundled Chromium headless-shell. Frozen Playwright1.58.2 compatibility and browser acceptance still require the actual tests.",
+  };
 }
 
 function paths() {
@@ -536,6 +733,14 @@ async function main(action) {
     });
     return;
   }
+  if (action === "inspect-chrome") {
+    const evidence = await inspectPreinstalledChrome(p);
+    writeJson(path.join(p.report, "preinstalled-chrome.json"), evidence);
+    console.log(
+      `Preinstalled Google Chrome: ${evidence.version}; ${evidence.binary.path}; channel=chrome; chromiumSandbox=true`,
+    );
+    return;
+  }
   if (action === "prepare") {
     verifyCheckout(p.candidate, false);
     verifyCheckout(p.baseline, true, manifest, false);
@@ -656,6 +861,14 @@ async function main(action) {
     const baseline = action.startsWith("baseline");
     const repo = baseline ? p.baseline : p.candidate;
     verifyCheckout(repo, baseline);
+    const chrome = readJson(path.join(p.report, "preinstalled-chrome.json"));
+    assertEqual(
+      chrome.state,
+      "PASS",
+      "Preinstalled Chrome preflight has not passed",
+    );
+    assertEqual(chrome.channel, "chrome", "Unexpected browser channel");
+    assertEqual(chrome.binary.path, chromeBinary, "Unexpected browser binary");
     const config = path.join(p.config, `${action}.config.ts`);
     const report = path.join(p.report, `${action}.json`);
     fs.writeFileSync(
@@ -680,7 +893,13 @@ async function main(action) {
     );
     const evidence = checkBrowserReport(readJson(report), baseline);
     verifyCheckout(repo, baseline);
-    pass(p, result, { ...evidence, chromiumSandbox: true, scope: e2ePath });
+    pass(p, result, {
+      ...evidence,
+      chromiumSandbox: true,
+      channel: "chrome",
+      preflightBrowserVersion: chrome.version,
+      scope: e2ePath,
+    });
     return;
   }
   if (action === "summarize") {
@@ -737,9 +956,12 @@ async function main(action) {
       source,
       results,
       listenerBindings: bindings,
+      browserPreflight: readJson(
+        path.join(p.report, "preinstalled-chrome.json"),
+      ),
       runtimeDeltas: [
         "Native Node listeners with unspecified/wildcard host are narrowed to127.0.0.1; actual addresses logged.",
-        "Browser config inherits upstream and enables Chromium sandbox, binds dev server127.0.0.1 and focuses eight tests.",
+        "Browser config uses preinstalled Google Chrome channel with sandbox enabled, binds dev server127.0.0.1 and focuses eight tests; not equivalent to bundled Chromium.",
       ],
       limitation:
         "Only the eight impacted file-tool E2E cases were run, not the pre-existing app.spec.ts suite.",

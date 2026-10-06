@@ -17,6 +17,7 @@ import {
   sha256,
   expectedUnit,
   unitArgs,
+  checkChromeMetadata,
 } from "./validate.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clone = (value) => structuredClone(value);
@@ -598,4 +599,82 @@ test("native test arguments are forwarded through explicit pnpm run", () => {
     }
     assert.equal(args.includes("--coverage.thresholds.lines=90"), coverage);
   }
+});
+
+test("Chrome channel draft preserves sandbox and contains no system repair path", () => {
+  const config = browserConfigText(
+    "/tmp/synthetic/repo",
+    "/tmp/output",
+    "/tmp/report.json",
+  );
+  assert(config.includes("channel: 'chrome'"));
+  assert(config.includes("chromiumSandbox: true"));
+  const workflow = fs.readFileSync(
+    path.resolve(here, "../../.github/workflows/validate-file-tool-errors.yml"),
+    "utf8",
+  );
+  assert(workflow.includes("runs-on: ubuntu-24.04"));
+  assert(workflow.includes("validate.mjs inspect-chrome"));
+  assert(!workflow.includes("playwright install"));
+  const implementation = fs.readFileSync(
+    path.join(here, "validate.mjs"),
+    "utf8",
+  );
+  for (const forbidden of [
+    "--no-sandbox",
+    "chromiumSandbox: false",
+    "sudo ",
+    "chmod",
+    "CHROME_DEVEL_SANDBOX",
+    "sysctl -w",
+    "apparmor_parser",
+    "service apparmor",
+  ]) {
+    assert(!implementation.includes(forbidden));
+    assert(!workflow.includes(forbidden));
+  }
+  assert(implementation.includes("fs.realpathSync(file)"));
+  assert(implementation.includes("stat.uid, 0"));
+  assert(/stat\.mode\s*&\s*0o022,\s*0/.test(implementation));
+  assert(implementation.includes("fs.constants.W_OK"));
+  assert(implementation.includes('"--verify", "google-chrome-stable"'));
+});
+
+test("Chrome metadata gate accepts the existing system package/profile only", () => {
+  const release = 'ID=ubuntu\nVERSION_ID="24.04"\n';
+  const profile =
+    "profile chrome /opt/google/chrome/chrome flags=(unconfined) {\n  userns,\n}\n";
+  const pkg = "install ok installed\t150.0.1000.1-1\tChrome Linux Team\tamd64";
+  const owner = "google-chrome-stable: /opt/google/chrome/chrome";
+  assert.equal(
+    checkChromeMetadata(
+      release,
+      profile,
+      pkg,
+      owner,
+      "Google Chrome 150.0.1000.1",
+    ).packageVersion,
+    "150.0.1000.1-1",
+  );
+  for (const args of [
+    [release, "", pkg, owner],
+    [
+      release,
+      "profile chrome /opt/google/chrome/chrome { }\nprofile other /opt/other {\n  userns,\n}",
+      pkg,
+      owner,
+    ],
+    [release, profile.replace("  userns,", "  # userns,"), pkg, owner],
+    [
+      release,
+      profile,
+      pkg.replace("install ok installed", "deinstall ok config-files"),
+      owner,
+    ],
+    [release, profile, pkg, "downloaded-browser: /opt/google/chrome/chrome"],
+    [release, profile, pkg, owner, "Chromium 150.0.1000.1"],
+    [release, profile, pkg, owner, "Google Chrome 149.0.1000.1"],
+    [release.replace("24.04", "26.04"), profile, pkg, owner],
+  ])
+    assert.throws(() => checkChromeMetadata(...args));
 });
