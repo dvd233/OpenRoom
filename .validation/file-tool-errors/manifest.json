@@ -1,0 +1,62 @@
+{
+  "base_head": "02468154c4d99f8925916425bf444d672454fb3d",
+  "base_tree": "d3e1eec601b5a9e87c91cfed87b06bf3d1a97f5b",
+  "candidate_tree": "7b9fd5b0e36392186d7bde37535f1acf9fedfbc9",
+  "changed_files": [
+    {
+      "path": "apps/webuiapps/src/lib/diskStorage.ts",
+      "mode": "100644",
+      "size": 4943,
+      "git_blob_sha": "550d3b53f97670c2003d4ef3220e5f3d2a71b730",
+      "sha256": "e0998aafd62b005c659d3e6ead44ea165b5078cd9a3615b3f3f60d8b84124328",
+      "base_blob_sha": "fd880e016765f040afbc25ffff551502f685913c"
+    },
+    {
+      "path": "apps/webuiapps/src/lib/fileTools.ts",
+      "mode": "100644",
+      "size": 7521,
+      "git_blob_sha": "9048f50b2e8ea87b7006fa42db469e1d6853dd15",
+      "sha256": "e79f2766f24f4476fc71497e57d217b3ee26f55da484e5a771e15aa2709ce101",
+      "base_blob_sha": "49c251b29a75c6c43c8a49a173d2991aa4addfc7"
+    },
+    {
+      "path": "apps/webuiapps/src/lib/__tests__/diskStorage.test.ts",
+      "mode": "100644",
+      "size": 9700,
+      "git_blob_sha": "7c8702e0f05df93943ab9ba90c2e1c6061bfb2a3",
+      "sha256": "f57aa1287bec90fa94594b1eaaf685b8af68337df449ff54251fafe54f018ae9",
+      "base_blob_sha": null
+    },
+    {
+      "path": "apps/webuiapps/src/lib/__tests__/fileTools.test.ts",
+      "mode": "100644",
+      "size": 6486,
+      "git_blob_sha": "992f0ce97d7e56b628b368cf2fe5d80c84d17abf",
+      "sha256": "dfa89ecb5e8c08af42374746d47f129daf63388243fb8cb0d2d13a4c2b2aba5d",
+      "base_blob_sha": null
+    },
+    {
+      "path": "e2e/file-tool-errors.spec.ts",
+      "mode": "100644",
+      "size": 7721,
+      "git_blob_sha": "8bcf885984667fa5ad060a5568c6fbf8b7886a75",
+      "sha256": "c7d788c2a680aaeeffe6d7409d23a8498abbd2729c01b64333500597724e389a",
+      "base_blob_sha": null
+    }
+  ],
+  "native_tests": {
+    "candidate_total": 171,
+    "candidate_pass": 171,
+    "base_regression_total": 60,
+    "base_expected_failed": 18,
+    "base_passing_controls": 42
+  },
+  "local_validation_note": "Node24.19.0, pnpm9.0.0 original dependency snapshots; original Vitest config merged only with server.ws=false for local no-listener execution; all sockets and listeners blocked by preload. Not full repository CI.",
+  "base_tree_recomputed_from_verified_entries": true,
+  "binding": {
+    "repository": "dvd233/OpenRoom",
+    "repository_id": "1407883783",
+    "feature_sha": "165b3d1b0c91293fc2ab776d6bd18497f1dae063",
+    "validation_branch": "validation/openroom-file-tool-errors"
+  }
+}

@@ -1,0 +1,84 @@
+name: Validate OpenRoom file-tool errors
+on:
+  push:
+    branches: [validation/openroom-file-tool-errors]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    if: github.repository == 'dvd233/OpenRoom' && github.repository_id == '1407883783'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      HUSKY: "0"
+      DO_NOT_TRACK: "1"
+      TURBO_TELEMETRY_DISABLED: "1"
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/openroom-browsers
+      VALIDATION_REPORT_DIR: ${{ runner.temp }}/openroom-file-tool-validation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: validation
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "20.20.2"
+      - name: Verify fixed binding
+        id: binding
+        run: node validation/.validation/file-tool-errors/validate.mjs binding >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.binding.outputs.feature_sha }}
+          path: candidate
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.binding.outputs.base_sha }}
+          path: baseline
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          version: "9.0.0"
+          run_install: false
+      - name: Check harness and exact source
+        run: |
+          node --test validation/.validation/file-tool-errors/validate.test.mjs
+          node validation/.validation/file-tool-errors/validate.mjs verify
+      - name: Install original frozen dependencies without lifecycle scripts
+        working-directory: candidate
+        run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org/
+      - name: Install matching official Chromium
+        working-directory: candidate
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Isolate runtime home and prepare baseline
+        run: node validation/.validation/file-tool-errors/validate.mjs prepare
+      - name: Native package tests
+        run: node validation/.validation/file-tool-errors/validate.mjs candidate-unit
+      - name: Native touched-file coverage
+        run: node validation/.validation/file-tool-errors/validate.mjs candidate-coverage
+      - name: Native lint with clean-tree check
+        run: node validation/.validation/file-tool-errors/validate.mjs lint
+      - name: Native build with clean-tree check
+        run: node validation/.validation/file-tool-errors/validate.mjs build
+      - name: Original-source unit negative control
+        run: node validation/.validation/file-tool-errors/validate.mjs baseline-unit
+      - name: Candidate real Agent browser flow
+        run: node validation/.validation/file-tool-errors/validate.mjs candidate-e2e
+      - name: Original-source browser negative control
+        run: node validation/.validation/file-tool-errors/validate.mjs baseline-e2e
+      - name: Verify every required result and unchanged source
+        run: node validation/.validation/file-tool-errors/validate.mjs summarize
+      - name: Save bounded validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openroom-file-tool-validation-${{ github.run_id }}
+          path: ${{ runner.temp }}/openroom-file-tool-validation
+          retention-days: 7
+          if-no-files-found: error

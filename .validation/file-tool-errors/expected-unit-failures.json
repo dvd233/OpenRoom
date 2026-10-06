@@ -1,0 +1,97 @@
+{
+  "expectedFailed": [
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'write' failures rejects HTTP 403 when requested without reading response data",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'write' failures rejects HTTP 500 when requested without reading response data",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'write' failures preserves rejection identity",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'write' failures preserves rejection identity",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'delete' failures rejects HTTP 403 when requested without reading response data",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'delete' failures rejects HTTP 500 when requested without reading response data",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'delete' failures preserves rejection identity",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " 'delete' failures preserves rejection identity",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " mutation requests and batches write batch rejects before other requests settle",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "diskStorage.test.ts",
+      "fullName": " mutation requests and batches delete batch rejects before other requests settle",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_write real storage path reports HTTP 403 as an error without exposing response content",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_write real storage path reports HTTP 500 as an error without exposing response content",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_write real storage path reports network failure",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_write real storage path reports network failure",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_delete real storage path reports HTTP 403 as an error without exposing response content",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_delete real storage path reports HTTP 500 as an error without exposing response content",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_delete real storage path reports network failure",
+      "failureCategory": "assertion"
+    },
+    {
+      "file": "fileTools.test.ts",
+      "fullName": " file_delete real storage path reports network failure",
+      "failureCategory": "assertion"
+    }
+  ],
+  "expectedPassed": 42,
+  "expectedTotal": 60,
+  "note": "Match multiset of file/fullName because parameterized Error/string cases have identical names. Reject setup errors and timeouts."
+}
