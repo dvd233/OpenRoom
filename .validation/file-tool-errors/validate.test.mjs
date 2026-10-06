@@ -16,6 +16,7 @@ import {
   blobSha,
   sha256,
   expectedUnit,
+  unitArgs,
 } from "./validate.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clone = (value) => structuredClone(value);
@@ -568,4 +569,33 @@ test("runner-specific paths are initialized in a step, never job-level env", () 
   assert(
     workflow.includes("path: ${{ runner.temp }}/openroom-file-tool-validation"),
   );
+});
+
+test("native test arguments are forwarded through explicit pnpm run", () => {
+  for (const [baseline, coverage, script] of [
+    [false, false, "test"],
+    [false, true, "test:coverage"],
+    [true, false, "test"],
+  ]) {
+    const args = unitArgs("/tmp/synthetic-report.json", baseline, coverage);
+    assert.deepEqual(args.slice(0, 4), [
+      "--filter",
+      "@openroom/webuiapps",
+      "run",
+      script,
+    ]);
+    assert(args.indexOf("--pool=threads") > 3);
+    assert(args.indexOf("--outputFile=/tmp/synthetic-report.json") > 3);
+    assert(
+      !args.includes("--"),
+      "Do not pass a literal separator into the Vitest script",
+    );
+    if (baseline) {
+      assert.deepEqual(args.slice(4, 6), [
+        "src/lib/__tests__/diskStorage.test.ts",
+        "src/lib/__tests__/fileTools.test.ts",
+      ]);
+    }
+    assert.equal(args.includes("--coverage.thresholds.lines=90"), coverage);
+  }
 });

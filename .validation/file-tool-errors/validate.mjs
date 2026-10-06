@@ -486,10 +486,11 @@ function pass(p, result, evidence) {
   });
   console.log(`${result.name}: PASS`);
 }
-function unitArgs(report, baseline, coverage) {
+export function unitArgs(report, baseline, coverage) {
   const args = [
     "--filter",
     "@openroom/webuiapps",
+    "run",
     coverage ? "test:coverage" : "test",
   ];
   if (baseline) args.push(...unitPaths);
